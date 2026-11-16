@@ -28,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
-    def reply(self, status, body, content_type='application/json', sign=False):
+    def reply(self, status, body, content_type='application/json', sign=False, download=None):
         if isinstance(body, (dict, list)):
             body = json.dumps(body, separators=(',', ':'), ensure_ascii=True).encode()
         if isinstance(body, str):
@@ -36,6 +36,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', content_type)
         self.send_header('Content-Length', str(len(body)))
+        if download:
+            self.send_header('Content-Disposition', 'attachment; filename="'+download+'"')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Cache-Control', 'no-store')
@@ -60,7 +62,12 @@ class Handler(BaseHTTPRequestHandler):
         elif route.path in ['/', '/app.js', '/style.css']:
             name = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css'}[route.path]
             content_type = {'/': 'text/html; charset=utf-8', '/app.js': 'text/javascript; charset=utf-8', '/style.css': 'text/css; charset=utf-8'}[route.path]
-            self.reply(200, (agent.ROOT / 'public' / name).read_bytes(), content_type)
+            path = agent.ROOT / 'public' / name
+            if not path.is_file():
+                path = agent.ROOT / name
+            self.reply(200, path.read_bytes(), content_type)
+        elif route.path == '/download/server.py':
+            self.reply(200, (agent.ROOT / 'server.py').read_bytes(), 'text/plain; charset=utf-8', download='server.py')
         elif route.path == '/about':
             self.reply(200, (agent.ROOT / 'PUBLIC.md').read_text(), 'text/plain; charset=utf-8')
         elif route.path == '/entry':
